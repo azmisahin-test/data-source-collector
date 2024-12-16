@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Trending Titles</title>
+    <style>
+      body {
+        font-family: "Arial", sans-serif;
+        background-color: #f4f7f6;
+        color: #333;
+        margin: 0;
+        padding: 0;
+      }
+      header {
+        background-color: #0073e6;
+        color: white;
+        text-align: center;
+        padding: 15px;
+      }
+      main {
+        padding: 20px;
+      }
+      .title-list {
+        list-style: none;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 10px;
+      }
+      .title-item {
+        background-color: white;
+        padding: 15px;
+        border-radius: 5px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        font-size: 16px;
+        transition: transform 0.2s, box-shadow 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        float: left;
+      }
+      .title-item:hover {
+        transform: scale(1.05);
+        box-shadow: 0 8px 12px rgba(0, 0, 0, 0.2);
+      }
+      .title-item img {
+        width: 50px;
+        height: 50px;
+        border-radius: 5px;
+        object-fit: cover;
+      }
+      .title-item .content {
+        display: flex;
+        flex-direction: column;
+      }
+      .title-item .content a {
+        font-weight: bold;
+        color: #0073e6;
+        text-decoration: none;
+        margin-bottom: 5px;
+      }
+      .title-item .content a:hover {
+        text-decoration: underline;
+      }
+      .title-item .content .pub-date {
+        font-size: 14px;
+        color: #666;
+      }
+      .title-item .content .traffic {
+        font-size: 14px;
+        color: #ff5722;
+        font-weight: bold;
+      }
+      .loading {
+        text-align: center;
+        font-size: 20px;
+        color: #0073e6;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Trending Search Titles</h1>
+    </header>
+
+    <main>
+      <div id="loading" class="loading">Waiting for updates...</div>
+      <ul id="title-list" class="title-list" style="display: none"></ul>
+    </main>
+
+    <script>
+      const titleList = document.getElementById("title-list");
+      const loadingMessage = document.getElementById("loading");
+
+      // Set up SSE to receive real-time updates
+      const eventSource = new EventSource("/events");
+
+      // To keep track of already added titles and prevent duplicates, as well as store their data
+      let addedTitles = {};
+
+      // Handle incoming messages (titles) from the server
+      eventSource.onmessage = function (event) {
+        const data = JSON.parse(event.data);
+
+        // Hide loading message
+        loadingMessage.style.display = "none";
+
+        // Display new titles
+        data.items.forEach((item) => {
+          // Check if the title is already added
+          if (addedTitles[item.title]) {
+            // Update the existing entry if the content has changed
+            const existingItem = addedTitles[item.title];
+
+            // Check for any updates (e.g., traffic, publish date)
+            if (
+              existingItem.traffic !== item.traffic ||
+              existingItem.pubDate !== item.pubDate
+            ) {
+              existingItem.traffic = item.traffic; // Update traffic
+              existingItem.pubDate = item.pubDate; // Update publish date
+
+              // Update the DOM element corresponding to the existing title
+              const li = existingItem.li; // Get the corresponding list item
+              li.querySelector(
+                ".traffic"
+              ).textContent = `Traffic: ${item.traffic}`;
+              li.querySelector(
+                ".pub-date"
+              ).textContent = `Published on: ${item.pubDate}`;
+            }
+            return; // Skip adding it again
+          }
+
+          // If the title is not already added, create a new entry
+          const li = document.createElement("li");
+          li.classList.add("title-item");
+
+          // Create image element
+          const img = document.createElement("img");
+          img.src = item.picture;
+          img.alt = item.title;
+
+          // Create content container
+          const content = document.createElement("div");
+          content.classList.add("content");
+
+          // Create link element
+          const link = document.createElement("a");
+          link.href = item.link;
+          link.textContent = item.title;
+          link.target = "_blank";
+
+          // Create publish date element
+          const pubDate = document.createElement("div");
+          pubDate.classList.add("pub-date");
+          pubDate.textContent = `Published on: ${item.pubDate}`;
+
+          // Create traffic element
+          const traffic = document.createElement("div");
+          traffic.classList.add("traffic");
+          traffic.textContent = `Traffic: ${item.traffic}`;
+
+          const language = document.createElement("div");
+          language.classList.add("language_name");
+          language.textContent = `lang: ${data.language_name}`;
+
+          // Append elements to content container
+          content.appendChild(link);
+          content.appendChild(pubDate);
+          content.appendChild(traffic);
+          content.appendChild(language);
+
+          // Append image and content to list item
+          li.appendChild(img);
+          li.appendChild(content);
+
+          // Append list item to the title list
+          titleList.appendChild(li);
+
+          // Store the list item in the addedTitles object for future reference
+          addedTitles[item.title] = {
+            li: li,
+            traffic: item.traffic,
+            pubDate: item.pubDate,
+          };
+        });
+
+        // Show the title list if it's not already visible
+        titleList.style.display = "block";
+      };
+
+      // Handle any errors in the SSE connection
+      eventSource.onerror = function () {
+        console.error("Error receiving real-time data.");
+      };
+    </script>
+  </body>
+</html>
